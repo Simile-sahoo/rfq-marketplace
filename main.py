@@ -2,14 +2,15 @@ from fastapi import FastAPI, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine, Base
-import models, jwt
+import models
+from jose import jwt
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
-# CORS FIX - YEHI MAIN FIX HAI
+# CORS FIX
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -55,7 +56,6 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     payload = {"email": user.email, "role": user.role, "id": user.id, "exp": datetime.utcnow() + timedelta(hours=24)}
     token = jwt.encode(payload, SECRET, algorithm=ALGO)
-    # YAHAN ROLE BHI BHEJNA ZARURI HAI
     return {"access_token": token, "role": user.role, "email": user.email}
 
 @app.post("/rfq/create")
@@ -66,7 +66,6 @@ def create_rfq(product_name: str, description: str, quantity: int, delivery_loca
     db.add(rfq); db.commit(); db.refresh(rfq)
     return {"message": "RFQ created", "rfq": rfq}
 
-# YE 2 ENDPOINT MISSING THE - ISKI WAJAH SE EMPTY AATA HAI
 @app.get("/rfq/list")
 def list_rfq(search: str = "", authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
     user = get_current_user(authorization, token)
