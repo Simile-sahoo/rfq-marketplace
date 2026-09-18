@@ -10,6 +10,23 @@ from passlib.context import CryptContext
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
+@app.on_event("startup")
+def seed_users():
+    db = SessionLocal()
+    try:
+        defaults = [
+            ("buyer1@gmail.com", "123456", "BUYER"),
+            ("vendor1@gmail.com", "123456", "VENDOR"),
+            ("vendor2@gmail.com", "123456", "VENDOR"),
+        ]
+        for email, pwd, role in defaults:
+            if not db.query(models.User).filter(models.User.email == email).first():
+                user = models.User(email=email, hashed_password=pwd_context.hash(pwd), role=role)
+                db.add(user)
+        db.commit()
+    finally:
+        db.close()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
