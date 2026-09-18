@@ -10,6 +10,11 @@ from passlib.context import CryptContext
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
+SECRET = "mysecret123"
+ALGO = "HS256"
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+
 @app.on_event("startup")
 def seed_users():
     db = SessionLocal()
@@ -34,10 +39,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-SECRET = "mysecret123"
-ALGO = "HS256"
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def get_db():
     db = SessionLocal()
@@ -121,26 +122,19 @@ def quotes_for_rfq(rfq_id: int, authorization: str = Header(None), token: str = 
 def root():
     return {"message": "RFQ Marketplace Running"}
 
-# === FINAL FIX FOR 100 MARKS ===
-
 @app.put("/rfq/{rfq_id}")
-def update_rfq(rfq_id: int, product_name: str = None, quantity: int = None, 
-               delivery_location: str = None, deadline: str = None, description: str = None,
-               authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
+def update_rfq(rfq_id: int, product_name: str = None, quantity: int = None, delivery_location: str = None, deadline: str = None, description: str = None, authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
     user = get_current_user(authorization, token)
     if not user: raise HTTPException(status_code=401, detail="Token missing")
-    if user["role"] != "BUYER":
-        raise HTTPException(status_code=403, detail="Only buyers can edit")
+    if user["role"] != "BUYER": raise HTTPException(status_code=403, detail="Only buyers can edit")
     rfq = db.query(models.RFQ).filter(models.RFQ.id == rfq_id, models.RFQ.buyer_id == user["id"]).first()
-    if not rfq:
-        raise HTTPException(status_code=404, detail="RFQ not found")
+    if not rfq: raise HTTPException(status_code=404, detail="RFQ not found")
     if product_name: rfq.product_name = product_name
     if quantity is not None: rfq.quantity = quantity
     if delivery_location: rfq.delivery_location = delivery_location
     if deadline: rfq.deadline = deadline
     if description: rfq.description = description
-    db.commit()
-    db.refresh(rfq)
+    db.commit(); db.refresh(rfq)
     return rfq
 
 @app.delete("/rfq/{rfq_id}")
@@ -148,17 +142,13 @@ def delete_rfq(rfq_id: int, authorization: str = Header(None), token: str = None
     user = get_current_user(authorization, token)
     if not user: raise HTTPException(status_code=401, detail="Token missing")
     rfq = db.query(models.RFQ).filter(models.RFQ.id == rfq_id, models.RFQ.buyer_id == user["id"]).first()
-    if not rfq:
-        raise HTTPException(status_code=404, detail="RFQ not found")
-    db.delete(rfq)
-    db.commit()
+    if not rfq: raise HTTPException(status_code=404, detail="RFQ not found")
+    db.delete(rfq); db.commit()
     return {"message": "RFQ Deleted"}
 
 @app.get("/quote/my")
 def my_quotes(authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
     user = get_current_user(authorization, token)
     if not user: raise HTTPException(status_code=401, detail="Token missing")
-    if user["role"] not in ["VENDOR", "SUPPLIER"]:
-        raise HTTPException(status_code=403, detail="Only suppliers")
-    all_quotes = db.query(models.Quote).filter(models.Quote.supplier_id == user["id"]).all()
-    return all_quotes
+    if user["role"] not in ["VENDOR", "SUPPLIER"]: raise HTTPException(status_code=403, detail="Only suppliers")
+    return db.query(models.Quote).filter(models.Quote.supplier_id == user["id"]).all()
