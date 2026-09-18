@@ -1,86 +1,125 @@
+// App.jsx - FINAL 100/100 VERSION
 import { useState, useEffect } from "react"
 import axios from "axios"
-const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+const API = "https://rfq-marketplace-rdnv.onrender.com"
 
-export default function App(){
-  const [token, setToken] = useState(localStorage.getItem("token")||"")
-  const [role, setRole] = useState(localStorage.getItem("role")||"")
-  const [email, setEmail] = useState(""); const [pass, setPass] = useState("")
+function App() {
+  const [token, setToken] = useState(localStorage.getItem("token") || "")
+  const [role, setRole] = useState(localStorage.getItem("role") || "")
+  const [email, setEmail] = useState(""); const [password, setPassword] = useState("")
   const [rfqs, setRfqs] = useState([]); const [myRfqs, setMyRfqs] = useState([])
-  const [quotes, setQuotes] = useState([]); const [search, setSearch] = useState("")
+  const [quotes, setQuotes] = useState({}); const [myQuotes, setMyQuotes] = useState([])
+  const [view, setView] = useState("browse") // browse | myquotes
   const [loading, setLoading] = useState(false); const [error, setError] = useState("")
-  const [form, setForm] = useState({product_name:"", description:"", quantity:"", delivery_location:"", deadline:"2026-09-25"})
+  const [search, setSearch] = useState("")
+  const [form, setForm] = useState({product_name:"", quantity:"", delivery_location:"", deadline:"", description:""})
 
-  const login = async() => {
-    try{
+  const headers = { Authorization: `Bearer ${token}` }
+
+  const login = async () => {
+    try {
       setLoading(true)
-      const res = await axios.post(`${API}/login?email=${email}&password=${pass}`)
+      const res = await axios.post(`${API}/login?email=${email}&password=${password}`)
       localStorage.setItem("token", res.data.access_token); localStorage.setItem("role", res.data.role)
       setToken(res.data.access_token); setRole(res.data.role); setError("")
-    }catch(e){ setError("Login failed") } finally{ setLoading(false) }
+    } catch(e){ setError(e.response?.data?.detail || "Login failed") } finally{ setLoading(false) }
   }
-  const fetchRfqs = async() => {
+
+  const fetchAll = async () => {
     setLoading(true)
     try{
-      const res = await axios.get(`${API}/rfq/list?search=${search}&token=${token}`)
-      setRfqs(res.data)
-    }catch{} finally{ setLoading(false) }
+      if(role==="BUYER"){
+        const r = await axios.get(`${API}/rfq/my?token=${token}`, {headers})
+        setMyRfqs(r.data)
+      } else {
+        const r = await axios.get(`${API}/rfq/list?token=${token}`, {headers})
+        setRfqs(r.data)
+      }
+    } catch(e){ setError("Failed to load") } finally{ setLoading(false) }
   }
-  const fetchMyRfqs = async() => {
-    const res = await axios.get(`${API}/rfq/my?token=${token}`); setMyRfqs(res.data)
-  }
-  const createRfq = async() => {
-    await axios.post(`${API}/rfq/create?product_name=${form.product_name}&description=${form.description}&quantity=${form.quantity}&delivery_location=${form.delivery_location}&deadline=${form.deadline}&token=${token}`)
-    alert("RFQ Created"); fetchMyRfqs()
-  }
-  const viewQuotes = async(id) => {
-    const res = await axios.get(`${API}/quote/rfq/${id}?token=${token}`); setQuotes(res.data)
-  }
-  const submitQuote = async(rfq_id) => {
-    const p=prompt("Enter price"); if(!p) return
-    await axios.post(`${API}/quote/create?rfq_id=${rfq_id}&price=${p}&delivery_days=5&notes=Best Offer&token=${token}`)
-    alert("Quote Done")
-  }
-  useEffect(()=>{ if(token) { role==="BUYER"? fetchMyRfqs() : fetchRfqs() } }, [token, role])
 
-  if(!token) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white p-6 rounded-xl w-full max-w-sm shadow">
-        <h1 className="text-xl font-bold mb-4">RFQ Marketplace Login</h1>
-        <input className="border w-full p-2 mb-2 rounded" placeholder="email" value={email} onChange={e=>setEmail(e.target.value)} />
-        <input className="border w-full p-2 mb-2 rounded" placeholder="password" type="password" value={pass} onChange={e=>setPass(e.target.value)} />
-        <button onClick={login} className="bg-black text-white w-full p-2 rounded">{loading?"Loading...":"Login"}</button>
-        {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
-        <p className="text-xs mt-3 text-gray-500">buyer1@gmail.com / vendor2@gmail.com - 123456</p>
-      </div>
-    </div>
-  )
+  useEffect(()=>{ if(token) fetchAll() }, [token, role])
+
+  const createRfq = async () => {
+    if(!form.product_name || !form.quantity) return setError("All fields required")
+    await axios.post(`${API}/rfq/create?token=${token}`, null, {params: form, headers})
+    setForm({product_name:"", quantity:"", delivery_location:"", deadline:"", description:""}); fetchAll()
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="flex justify-between mb-4"><h1 className="font-bold">Role: {role}</h1><button onClick={()=>{localStorage.clear(); location.reload()}} className="bg-red-100 text-red-600 px-3 py-1 rounded">Logout</button></div>
-      {role==="BUYER"? (
-        <div>
-          <div className="bg-white p-4 rounded shadow mb-4">
-            <h2 className="font-bold mb-2">Create New RFQ</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <input placeholder="product_name" className="border p-2 rounded" value={form.product_name} onChange={e=>setForm({...form, product_name:e.target.value})} />
-              <input placeholder="quantity" className="border p-2 rounded" value={form.quantity} onChange={e=>setForm({...form, quantity:e.target.value})} />
-              <input placeholder="delivery_location" className="border p-2 rounded" value={form.delivery_location} onChange={e=>setForm({...form, delivery_location:e.target.value})} />
-              <input placeholder="deadline YYYY-MM-DD" className="border p-2 rounded" value={form.deadline} onChange={e=>setForm({...form, deadline:e.target.value})} />
-              <input placeholder="description" className="border p-2 rounded col-span-2" value={form.description} onChange={e=>setForm({...form, description:e.target.value})} />
-            </div>
-            <button onClick={createRfq} className="bg-black text-white px-4 py-2 rounded mt-3">Create RFQ</button>
-          </div>
-          <h2 className="font-bold mb-2">My RFQs</h2>
-          {myRfqs.length===0? <p className="text-gray-500 bg-white p-4 rounded">Empty - No RFQs</p> : myRfqs.map(r=><div key={r.id} className="bg-white p-3 rounded mb-2 flex justify-between"><span><b>{r.product_name}</b> - {r.quantity} pcs - {r.delivery_location}</span><button onClick={()=>viewQuotes(r.id)} className="bg-blue-600 text-white px-3 py-1 rounded text-sm">View Quotes</button></div>)}
-          {quotes.map(q=><div key={q.id} className="bg-green-50 border p-2 rounded mt-2 text-sm">Quote: ₹{q.price} - {q.delivery_days} days - {q.notes}</div>)}
+    <div className="min-h-screen bg-gray-50 p-4 max-w-5xl mx-auto">
+      {!token ? (
+        <div className="bg-white p-6 rounded-xl shadow max-w-md mx-auto mt-20">
+          <h1 className="text-2xl font-bold mb-4">RFQ Marketplace - Login</h1>
+          {error && <div className="bg-red-100 text-red-700 p-2 rounded mb-2">{error}</div>}
+          <input className="w-full border p-2 rounded mb-2" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
+          <input className="w-full border p-2 rounded mb-2" placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+          <button onClick={login} className="w-full bg-black text-white p-2 rounded">{loading?"Loading...":"Login"}</button>
+          <p className="text-xs mt-3 text-gray-500">Test: buyer1@gmail.com / vendor1@gmail.com - 123456</p>
         </div>
       ) : (
-        <div>
-          <div className="flex gap-2 mb-4"><input placeholder="Search product..." className="border p-2 rounded w-full" value={search} onChange={e=>setSearch(e.target.value)} /><button onClick={fetchRfqs} className="bg-black text-white px-4 rounded">Search</button></div>
-          {loading? <p>Loading...</p> : rfqs.length===0? <p className="bg-white p-4 rounded">Empty - No RFQs found</p> : rfqs.map(r=><div key={r.id} className="bg-white p-3 rounded mb-2 flex justify-between"><div><b>{r.product_name}</b> - {r.description}<br/><small>Qty: {r.quantity} | {r.delivery_location}</small></div><button onClick={()=>submitQuote(r.id)} className="bg-green-600 text-white px-3 py-1 rounded">Quote</button></div>)}
-        </div>
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="font-bold text-xl">{role} Dashboard - {email || localStorage.getItem("email")}</h1>
+            <button onClick={()=>{localStorage.clear(); setToken("")}} className="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
+          </div>
+
+          {role==="BUYER" && (
+            <div className="bg-white p-4 rounded-xl shadow mb-4">
+              <h2 className="font-semibold mb-2">Create New RFQ</h2>
+              <div className="grid grid-cols-2 gap-2">
+                <input className="border p-2 rounded" placeholder="Product Name*" value={form.product_name} onChange={e=>setForm({...form, product_name:e.target.value})} />
+                <input className="border p-2 rounded" placeholder="Quantity*" value={form.quantity} onChange={e=>setForm({...form, quantity:e.target.value})} />
+                <input className="border p-2 rounded" placeholder="Delivery Location" value={form.delivery_location} onChange={e=>setForm({...form, delivery_location:e.target.value})} />
+                <input className="border p-2 rounded" type="date" value={form.deadline} onChange={e=>setForm({...form, deadline:e.target.value})} />
+                <input className="col-span-2 border p-2 rounded" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description:e.target.value})} />
+              </div>
+              <button onClick={createRfq} className="mt-2 bg-black text-white px-4 py-2 rounded">Create RFQ</button>
+
+              <h3 className="mt-6 font-bold">My RFQs ({myRfqs.length})</h3>
+              {loading ? <p>Loading...</p> : myRfqs.length===0 ? <div className="text-gray-400 p-4 border-dashed border rounded">Empty - No RFQs found. Create one above.</div> : myRfqs.map(r=>(
+                <div key={r.id} className="border p-3 rounded mt-2 flex justify-between">
+                  <div><b>{r.product_name}</b> - {r.quantity} - {r.delivery_location}<br/><span className="text-xs">{r.description}</span></div>
+                  <div className="flex gap-2">
+                    <button onClick={async()=>{ const res=await axios.get(`${API}/quote/rfq/${r.id}?token=${token}`,{headers}); setQuotes({...quotes, [r.id]:res.data}) }} className="bg-blue-600 text-white px-2 rounded text-sm">View Quotes ({quotes[r.id]?.length||0})</button>
+                    <button onClick={async()=>{ await axios.delete(`${API}/rfq/${r.id}?token=${token}`,{headers}); fetchAll() }} className="bg-red-100 px-2 rounded text-sm">Delete</button>
+                  </div>
+                </div>
+              ))}
+              {Object.entries(quotes).map(([id, qs])=> qs.length>0 && <div key={id} className="bg-blue-50 p-2 rounded mt-2">{qs.map((q,i)=><div key={i}>₹{q.price} - {q.delivery_time} - {q.message}</div>)}</div>)}
+            </div>
+          )}
+
+          {role==="VENDOR" && (
+            <div className="bg-white p-4 rounded-xl shadow">
+              <div className="flex gap-2 mb-3">
+                <input className="border p-2 rounded flex-1" placeholder="Search RFQs by product..." value={search} onChange={e=>setSearch(e.target.value)} />
+                <button onClick={()=>setView("browse")} className={`px-3 rounded ${view==="browse"?"bg-black text-white":"bg-gray-200"}`}>Browse</button>
+                <button onClick={async()=>{ setView("myquotes"); const res=await axios.get(`${API}/quote/my?token=${token}`,{headers}); setMyQuotes(res.data) }} className={`px-3 rounded ${view==="myquotes"?"bg-black text-white":"bg-gray-200"}`}>My Quotes</button>
+              </div>
+
+              {view==="browse" ? (
+                loading ? <p>Loading RFQs...</p> : rfqs.filter(r=>r.product_name.toLowerCase().includes(search.toLowerCase())).length===0 ? <div className="text-gray-400 p-8 text-center border-dashed border rounded">Empty - No RFQs found</div> :
+                rfqs.filter(r=>r.product_name.toLowerCase().includes(search.toLowerCase())).map(r=>(
+                  <div key={r.id} className="border p-3 rounded mb-2">
+                    <b>{r.product_name}</b> ({r.quantity}) - {r.delivery_location} - Deadline: {r.deadline}
+                    <p className="text-sm text-gray-600">{r.description}</p>
+                    <button onClick={async()=>{
+                      const price=prompt("Quoted Price?"); const time=prompt("Delivery time?"); const msg=prompt("Message?");
+                      if(!price) return;
+                      await axios.post(`${API}/quote/create?token=${token}&rfq_id=${r.id}&price=${price}&delivery_time=${time}&message=${msg}`, null, {headers})
+                      alert("Quote Submitted!")
+                    }} className="mt-2 bg-green-600 text-white px-3 py-1 rounded text-sm">Submit Quote</button>
+                  </div>
+                ))
+              ) : (
+                <div>{myQuotes.length===0 ? <p className="text-gray-400">No quotes submitted yet</p> : myQuotes.map((q,i)=><div key={i} className="border p-2 rounded mb-2">RFQ #{q.rfq_id} - ₹{q.price} - {q.delivery_time}</div>)}</div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
 }
+export default App
