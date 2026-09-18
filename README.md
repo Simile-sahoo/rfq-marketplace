@@ -39,3 +39,12 @@ A full-stack B2B platform where Buyers post RFQs and Vendors/Suppliers submit co
 
 ### 🚀 How to Run Locally
 **Backend:**
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload
+
+**Frontend:**
+cd frontend
+npm install
+npm run dev
+VITE_API_URL=https://rfq-marketplace-rdnv.onrender.com
