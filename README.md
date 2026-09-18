@@ -1,25 +1,41 @@
-# RFQ Marketplace - Vendor & Buyer Platform
+# RFQ Marketplace - B2B Mini Marketplace
 
-A full-stack B2B platform where buyers post RFQs (Request for Quotations) and vendors submit bids. Built for seamless procurement.
+🔗 **Live Demo:** https://rfq-marketplace-pink.vercel.app
+🔗 **Backend API Docs:** https://rfq-marketplace-rdnv.onrender.com/docs
+🔗 **Repo:** https://github.com/Simile-sahoo/rfq-marketplace
 
-🔗 **Live Repo:** https://github.com/Simile-sahoo/rfq-marketplace
+A full-stack B2B platform where Buyers post RFQs and Vendors/Suppliers submit competitive quotations.
 
-### ✨ Features
-- **For Buyers:** Create, edit, delete RFQs, view all vendor bids, accept best bid
-- **For Vendors:** Browse open RFQs, submit quotations, track bid status
-- **Auth:** JWT based login/signup with role-based access (Buyer/Vendor)
-- **Dashboard:** Separate dashboards for Buyer and Vendor
+### ✨ Features Implemented (100% as per assignment)
+
+**For BUYER:**
+- Create RFQ (product_name, quantity, delivery_location, deadline, description) with validation
+- View My RFQs
+- Edit RFQ (PUT /rfq/{id})
+- Delete RFQ (DELETE /rfq/{id})
+- View all quotations received for an RFQ (GET /quote/rfq/{id})
+
+**For VENDOR / SUPPLIER:**
+- Browse All RFQs (GET /rfq/list)
+- Search/Filter RFQs by product_name (?search=)
+- Submit Quotation (price, delivery_days, notes)
+- View My Submitted Quotations History (GET /quote/my)
+- Loading, Empty, Error states handled
+
+**Common:**
+- JWT Auth (24h expiry) + Role-based access (BUYER/VENDOR)
+- Responsive UI - Tailwind CSS
+- Input validation & Error handling
 
 ### 🛠️ Tech Stack
-- **Backend:** Python, FastAPI, SQLAlchemy, SQLite
-- **Frontend:** React, Vite, Axios, Tailwind CSS
-- **Auth:** JWT, Bcrypt
+- **Frontend:** React + Vite + Tailwind CSS + Axios - Deployed on Vercel
+- **Backend:** FastAPI + SQLAlchemy ORM + SQLite (auto-seeded, Postgres ready) - Deployed on Render
+- **Auth:** JWT (jose) + pbkdf2_sha256 hashing
+
+### 🔑 Test Credentials (Auto-seeded - Render SQLite wipe fix)
+- Buyer: `buyer1@gmail.com / 123456`
+- Vendor: `vendor1@gmail.com / 123456`
+- Vendor: `vendor2@gmail.com / 123456`
 
 ### 🚀 How to Run Locally
 **Backend:**
-```bash
-cd rfq-marketplace
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload
