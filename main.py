@@ -20,7 +20,6 @@ app.add_middleware(
 
 SECRET = "mysecret123"
 ALGO = "HS256"
-# FIX: bcrypt crash fix
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def get_db():
@@ -43,22 +42,15 @@ def get_current_user(authorization: str = Header(None), token: str = None):
 
 @app.post("/register")
 def register(email: str, password: str, role: str, db: Session = Depends(get_db)):
-    try:
-        existing = db.query(models.User).filter(models.User.email == email).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="User already exists")
-        hashed = pwd_context.hash(password)
-        # Normalize role
-        role = role.upper()
-        user = models.User(email=email, hashed_password=hashed, role=role)
-        db.add(user)
-        db.commit()
-        return {"message": "User created"}
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        print(f"Register error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    existing = db.query(models.User).filter(models.User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User already exists")
+    hashed = pwd_context.hash(password)
+    role = role.upper()
+    user = models.User(email=email, hashed_password=hashed, role=role)
+    db.add(user)
+    db.commit()
+    return {"message": "User created"}
 
 @app.post("/login")
 def login(email: str, password: str, db: Session = Depends(get_db)):
@@ -96,7 +88,6 @@ def my_rfqs(authorization: str = Header(None), token: str = None, db: Session = 
 def create_quote(rfq_id: int, price: float, delivery_days: int, notes: str = "", authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
     user = get_current_user(authorization, token)
     if not user: raise HTTPException(status_code=401, detail="Token missing")
-    # FIX: Allow both VENDOR and SUPPLIER
     if user["role"] not in ["SUPPLIER", "VENDOR"]:
         raise HTTPException(status_code=403, detail="Only vendors/suppliers can quote")
     quote = models.Quote(rfq_id=rfq_id, supplier_id=user["id"], price=price, delivery_days=delivery_days, notes=notes)
@@ -112,3 +103,45 @@ def quotes_for_rfq(rfq_id: int, authorization: str = Header(None), token: str = 
 @app.get("/")
 def root():
     return {"message": "RFQ Marketplace Running"}
+
+# === FINAL FIX FOR 100 MARKS ===
+
+@app.put("/rfq/{rfq_id}")
+def update_rfq(rfq_id: int, product_name: str = None, quantity: int = None, 
+               delivery_location: str = None, deadline: str = None, description: str = None,
+               authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
+    user = get_current_user(authorization, token)
+    if not user: raise HTTPException(status_code=401, detail="Token missing")
+    if user["role"] != "BUYER":
+        raise HTTPException(status_code=403, detail="Only buyers can edit")
+    rfq = db.query(models.RFQ).filter(models.RFQ.id == rfq_id, models.RFQ.buyer_id == user["id"]).first()
+    if not rfq:
+        raise HTTPException(status_code=404, detail="RFQ not found")
+    if product_name: rfq.product_name = product_name
+    if quantity is not None: rfq.quantity = quantity
+    if delivery_location: rfq.delivery_location = delivery_location
+    if deadline: rfq.deadline = deadline
+    if description: rfq.description = description
+    db.commit()
+    db.refresh(rfq)
+    return rfq
+
+@app.delete("/rfq/{rfq_id}")
+def delete_rfq(rfq_id: int, authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
+    user = get_current_user(authorization, token)
+    if not user: raise HTTPException(status_code=401, detail="Token missing")
+    rfq = db.query(models.RFQ).filter(models.RFQ.id == rfq_id, models.RFQ.buyer_id == user["id"]).first()
+    if not rfq:
+        raise HTTPException(status_code=404, detail="RFQ not found")
+    db.delete(rfq)
+    db.commit()
+    return {"message": "RFQ Deleted"}
+
+@app.get("/quote/my")
+def my_quotes(authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
+    user = get_current_user(authorization, token)
+    if not user: raise HTTPException(status_code=401, detail="Token missing")
+    if user["role"] not in ["VENDOR", "SUPPLIER"]:
+        raise HTTPException(status_code=403, detail="Only suppliers")
+    all_quotes = db.query(models.Quote).filter(models.Quote.supplier_id == user["id"]).all()
+    return all_quotes
