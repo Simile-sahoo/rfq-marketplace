@@ -10,7 +10,6 @@ from passlib.context import CryptContext
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
-# CORS FIX
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,7 +20,8 @@ app.add_middleware(
 
 SECRET = "mysecret123"
 ALGO = "HS256"
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# FIX: bcrypt crash fix
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def get_db():
     db = SessionLocal()
@@ -43,11 +43,22 @@ def get_current_user(authorization: str = Header(None), token: str = None):
 
 @app.post("/register")
 def register(email: str, password: str, role: str, db: Session = Depends(get_db)):
-    hashed = pwd_context.hash(password)
-    user = models.User(email=email, hashed_password=hashed, role=role)
-    db.add(user)
-    db.commit()
-    return {"message": "User created"}
+    try:
+        existing = db.query(models.User).filter(models.User.email == email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="User already exists")
+        hashed = pwd_context.hash(password)
+        # Normalize role
+        role = role.upper()
+        user = models.User(email=email, hashed_password=hashed, role=role)
+        db.add(user)
+        db.commit()
+        return {"message": "User created"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Register error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/login")
 def login(email: str, password: str, db: Session = Depends(get_db)):
@@ -85,7 +96,9 @@ def my_rfqs(authorization: str = Header(None), token: str = None, db: Session = 
 def create_quote(rfq_id: int, price: float, delivery_days: int, notes: str = "", authorization: str = Header(None), token: str = None, db: Session = Depends(get_db)):
     user = get_current_user(authorization, token)
     if not user: raise HTTPException(status_code=401, detail="Token missing")
-    if user["role"] != "SUPPLIER": raise HTTPException(status_code=403, detail="Only suppliers can quote")
+    # FIX: Allow both VENDOR and SUPPLIER
+    if user["role"] not in ["SUPPLIER", "VENDOR"]:
+        raise HTTPException(status_code=403, detail="Only vendors/suppliers can quote")
     quote = models.Quote(rfq_id=rfq_id, supplier_id=user["id"], price=price, delivery_days=delivery_days, notes=notes)
     db.add(quote); db.commit(); db.refresh(quote)
     return {"message": "Quote created"}
